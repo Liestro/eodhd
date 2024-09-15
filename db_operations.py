@@ -1,9 +1,10 @@
 from pymongo import MongoClient
 import pymongo
+import env_var
 
 
 def get_mongo_client():
-    mongo_uri = "mongodb://localhost:27017/"
+    mongo_uri = f"mongodb://{env_var.MONGO_HOST}:27017/"
     return MongoClient(mongo_uri)
 
 

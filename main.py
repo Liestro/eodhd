@@ -1,8 +1,9 @@
-import eodhd_api_operations as api
+from async_eodhd_api import EodhdAPISession
 import db_operations as db
+import env_var
+import asyncio
 
-
-def main():
+def old_main():
     # Инициализация клиентов
     eodhd_api = api.get_eodhd_api_client()
     mongo_client = db.get_mongo_client()
@@ -23,5 +24,23 @@ def main():
     db.store_news_data(mongo_client, news_data)
 
 
+async def main():
+    print("Main started")
+
+    # Подключение к базе
+    mongo_client = db.get_mongo_client()
+    db.test_mongo_connection(mongo_client)
+
+    eodhd_api_token = env_var.EODHD_API_TOKEN
+    async with EodhdAPISession(eodhd_api_token) as session:
+        # symbols = await session.get_exchange_symbols("NYSE")
+        symbols = ['TSLA', 'AAPL', 'MSFT']
+        historical_data_tasks = [session.get_historical_data(symbol) for symbol in symbols]
+        historical_data = await asyncio.gather(*historical_data_tasks)
+        for symbol, data in historical_data:
+            mongo_client.historical_data[symbol].create_index([("date", db.pymongo.ASCENDING)], unique=True)
+            mongo_client.historical_data[symbol].insert_many(data)
+
+
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

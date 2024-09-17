@@ -11,14 +11,16 @@ def connect_to_database() -> MongoClient:
 
 async def collecting_data(eodhd_api_token: str, mongo_client: MongoClient):
     async with EodhdAPISession(eodhd_api_token) as session:
-        # symbols = await session.get_exchange_symbols("NYSE")
-        symbols = ['TSLA', 'AAPL', 'MSFT']
+        symbols = await session.get_exchange_symbols("NYSE")
+        # symbols = ['TSLA', 'AAPL', 'MSFT']  # Tickers for demo api_token for testing
         historical_data_tasks = [session.get_historical_data(symbol) for symbol in symbols]
         news_data_tasks = [session.get_news_data(symbol) for symbol in symbols]
+        fundamental_data_tasks = [session.get_fundamental_data(symbol) for symbol in symbols]
         
-        historical_data, news_data = await asyncio.gather(
+        historical_data, news_data, fundamental_data = await asyncio.gather(
             asyncio.gather(*historical_data_tasks),
-            asyncio.gather(*news_data_tasks)
+            asyncio.gather(*news_data_tasks),
+            asyncio.gather(*fundamental_data_tasks)
         )
         
         for symbol, data in historical_data:
@@ -38,6 +40,10 @@ async def collecting_data(eodhd_api_token: str, mongo_client: MongoClient):
                     for item in data
                 ]
                 mongo_client.news_data[symbol].bulk_write(operations)
+        
+        for symbol, data in fundamental_data:
+            if data:
+                mongo_client.fundamental_data[symbol].replace_one({}, data, upsert=True)
 
 async def main():
     # Подключение к базе

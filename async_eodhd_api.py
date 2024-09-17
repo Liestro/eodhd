@@ -42,7 +42,14 @@ class EodhdAPISession:
 
     @async_timer_decorator
     async def get_fundamental_data(self, symbol: str):
-        await asyncio.sleep(1)
+        async with self.session.get(f'/api/fundamentals/{symbol}?api_token={self.api_key}&fmt=json') as resp:
+            if resp.status == 200:
+                fundamental_data = await resp.json()
+                print(f"Received fundamental data for symbol {symbol}")
+                return (symbol, fundamental_data)
+            else:
+                print(f"Error getting fundamental data for symbol {symbol}: {resp.status}")
+                return (symbol, None)
 
     @async_timer_decorator
     async def get_news_data(self, symbol: str):
@@ -61,18 +68,19 @@ if __name__ == '__main__':
         api_key = "demo"
         async with EodhdAPISession(api_key) as api:
             results = await asyncio.gather(
-                # api.get_exchange_symbols('NYSE'),
                 api.get_historical_data('TSLA'),
-                api.get_fundamental_data('BTC-USD'),
+                api.get_fundamental_data('TSLA'),
                 api.get_news_data('TSLA'),
+                # api.get_exchange_symbols('NYSE'),
             )
             
             # Output results
-            # print(f"NYSE symbols: {len(results[0])} received")
             print(f"TSLA historical data: {len(results[0][1])} records")
+            print(f"TSLA fundamental data: {'Received' if results[1][1] else 'No data'}")
             print(f"TSLA news data: {len(results[2][1]) if results[2][1] else 'No data'} articles")
             if results[2][1]:
                 print(results[2][1][0].keys())
+            # print(f"NYSE symbols: {len(results[3])} received")
 
         end_time = time.time()
         print(f'Total execution time: {end_time - start_time} seconds')

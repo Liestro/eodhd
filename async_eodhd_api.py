@@ -1,6 +1,19 @@
 import asyncio
 from aiohttp import ClientSession
 import time
+import functools
+
+def async_timer_decorator(func):
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        print(f"Starting function: {func.__name__}")
+        start_time = time.time()
+        result = await func(*args, **kwargs)
+        end_time = time.time()
+        print(f"Finished function: {func.__name__}")
+        print(f"Execution time: {end_time - start_time:.4f} seconds")
+        return result
+    return wrapper
 
 class EodhdAPISession:
     def __init__(self, api_key: str):
@@ -22,33 +35,46 @@ class EodhdAPISession:
             codes = [item['Code'] for item in response_json]
             return codes
 
+    @async_timer_decorator
     async def get_historical_data(self, symbol: str):
         async with self.session.get(f'/api/eod/{symbol}?period=d&api_token={self.api_key}&fmt=json') as resp:
             return (symbol, await resp.json())
 
+    @async_timer_decorator
     async def get_fundamental_data(self, symbol: str):
-        print(f"collecting fundamental data started for symbol {symbol}")
         await asyncio.sleep(1)
-        print(f"collecting fundamental data finished for symbol {symbol}")
 
+    @async_timer_decorator
     async def get_news_data(self, symbol: str):
-        print(f"collecting news data started for symbol {symbol}")
-        await asyncio.sleep(2)
-        print(f"collecting news data finished for symbol {symbol}")
+        async with self.session.get(f'/api/news?s={symbol}&api_token={self.api_key}&fmt=json') as resp:
+            if resp.status == 200:
+                news_data = await resp.json()
+                print(f"Received {len(news_data)} news articles for symbol {symbol}")
+                return (symbol, news_data)
+            else:
+                print(f"Error getting news data for symbol {symbol}: {resp.status}")
+                return (symbol, None)
 
 if __name__ == '__main__':
     async def main():
         start_time = time.time()
         api_key = "demo"
         async with EodhdAPISession(api_key) as api:
-            await asyncio.gather(
-                api.get_exchange_symbols('NYSE'),
+            results = await asyncio.gather(
+                # api.get_exchange_symbols('NYSE'),
                 api.get_historical_data('TSLA'),
                 api.get_fundamental_data('BTC-USD'),
-                api.get_news_data('BTC-USD'),
+                api.get_news_data('TSLA'),
             )
-        end_time = time.time()
-        print(f'Total time taken: {end_time - start_time} seconds')
+            
+            # Output results
+            # print(f"NYSE symbols: {len(results[0])} received")
+            print(f"TSLA historical data: {len(results[0][1])} records")
+            print(f"TSLA news data: {len(results[2][1]) if results[2][1] else 'No data'} articles")
+            if results[2][1]:
+                print(results[2][1][0].keys())
 
+        end_time = time.time()
+        print(f'Total execution time: {end_time - start_time} seconds')
 
     asyncio.run(main())

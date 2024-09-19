@@ -9,28 +9,38 @@ def connect_to_database() -> EodhdMongoClient:
     mongo_client.test_connection()
     return mongo_client
 
+async def collect_and_store_historical_data(session: EodhdAPISession, mongo_client: EodhdMongoClient, symbol: str):
+    historical_data = await session.get_historical_data(symbol)
+    mongo_client.store_historical_data(symbol, historical_data[1])
+
+
+async def collect_and_store_fundamental_data(session: EodhdAPISession, mongo_client: EodhdMongoClient, symbol: str):
+    fundamental_data = await session.get_fundamental_data(symbol)
+    mongo_client.store_fundamental_data(symbol, fundamental_data[1])
+
+
+async def collect_and_store_news_data(session: EodhdAPISession, mongo_client: EodhdMongoClient, symbol: str):
+    news_data = await session.get_news_data(symbol)
+    mongo_client.store_news_data(symbol, news_data[1])
+    
+    
 async def collecting_data(eodhd_api_token: str, mongo_client: EodhdMongoClient):
     async with EodhdAPISession(eodhd_api_token) as session:
         # symbols = await session.get_exchange_symbols("NYSE")
         symbols = ['TSLA', 'AAPL', 'MSFT']  # Tickers for demo api_token for testing
-        historical_data_tasks = [session.get_historical_data(symbol) for symbol in symbols]
-        news_data_tasks = [session.get_news_data(symbol) for symbol in symbols]
-        fundamental_data_tasks = [session.get_fundamental_data(symbol) for symbol in symbols]
         
-        historical_data, news_data, fundamental_data = await asyncio.gather(
-            asyncio.gather(*historical_data_tasks),
-            asyncio.gather(*news_data_tasks),
-            asyncio.gather(*fundamental_data_tasks)
-        )
+        tasks = []
+        for symbol in symbols:
+            tasks.extend([
+                collect_and_store_historical_data(session, mongo_client, symbol),
+                collect_and_store_fundamental_data(session, mongo_client, symbol),
+                collect_and_store_news_data(session, mongo_client, symbol)
+            ])
         
-        for symbol, data in historical_data:
-            mongo_client.store_historical_data(symbol, data)
+        await asyncio.gather(*tasks)
         
-        for symbol, data in news_data:
-            mongo_client.store_news_data(symbol, data)
-        
-        for symbol, data in fundamental_data:
-            mongo_client.store_fundamental_data(symbol, data)
+        for symbol in symbols:
+            print(f"All data for symbol {symbol} successfully collected and saved.")
 
 async def main():
     # Подключение к базе

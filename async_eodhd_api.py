@@ -38,7 +38,13 @@ class EodhdAPISession:
     @async_timer_decorator
     async def get_historical_data(self, symbol: str):
         async with self.session.get(f'/api/eod/{symbol}?period=d&api_token={self.api_key}&fmt=json') as resp:
-            return (symbol, await resp.json())
+            if resp.status == 200:
+                historical_data = await resp.json()
+                print(f"Received historical data for symbol {symbol}")
+                return (symbol, historical_data)
+            else:
+                print(f"Error getting historical data for symbol {symbol}: {resp.status}")
+                return (symbol, None)
 
     @async_timer_decorator
     async def get_fundamental_data(self, symbol: str):
@@ -75,7 +81,7 @@ if __name__ == '__main__':
             )
             
             # Output results
-            print(f"TSLA historical data: {len(results[0][1])} records")
+            print(f"TSLA historical data: {len(results[0][1]) if results[0][1] else 'No data'} records")
             print(f"TSLA fundamental data: {'Received' if results[1][1] else 'No data'}")
             print(f"TSLA news data: {len(results[2][1]) if results[2][1] else 'No data'} articles")
             if results[2][1]:

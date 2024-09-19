@@ -1,18 +1,18 @@
 from async_eodhd_api import EodhdAPISession
-import db_operations as db
+from db_operations import EodhdMongoClient
 import env_var
 import asyncio
-from pymongo import MongoClient
 
-def connect_to_database() -> MongoClient:
-    mongo_client = db.get_mongo_client()
-    db.test_mongo_connection(mongo_client)
+def connect_to_database() -> EodhdMongoClient:
+    mongo_uri = f"mongodb://{env_var.MONGO_HOST}:27017/"
+    mongo_client = EodhdMongoClient(mongo_uri)
+    mongo_client.test_connection()
     return mongo_client
 
-async def collecting_data(eodhd_api_token: str, mongo_client: MongoClient):
+async def collecting_data(eodhd_api_token: str, mongo_client: EodhdMongoClient):
     async with EodhdAPISession(eodhd_api_token) as session:
-        symbols = await session.get_exchange_symbols("NYSE")
-        # symbols = ['TSLA', 'AAPL', 'MSFT']  # Tickers for demo api_token for testing
+        # symbols = await session.get_exchange_symbols("NYSE")
+        symbols = ['TSLA', 'AAPL', 'MSFT']  # Tickers for demo api_token for testing
         historical_data_tasks = [session.get_historical_data(symbol) for symbol in symbols]
         news_data_tasks = [session.get_news_data(symbol) for symbol in symbols]
         fundamental_data_tasks = [session.get_fundamental_data(symbol) for symbol in symbols]
@@ -24,13 +24,13 @@ async def collecting_data(eodhd_api_token: str, mongo_client: MongoClient):
         )
         
         for symbol, data in historical_data:
-            db.store_historical_data(mongo_client, symbol, data)
+            mongo_client.store_historical_data(symbol, data)
         
         for symbol, data in news_data:
-            db.store_news_data(mongo_client, symbol, data)
+            mongo_client.store_news_data(symbol, data)
         
         for symbol, data in fundamental_data:
-            db.store_fundamental_data(mongo_client, symbol, data)
+            mongo_client.store_fundamental_data(symbol, data)
 
 async def main():
     # Подключение к базе

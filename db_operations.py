@@ -1,4 +1,4 @@
-from pymongo import MongoClient
+from pymongo import MongoClient, UpdateOne
 import pymongo
 import env_var
 
@@ -16,5 +16,26 @@ def test_mongo_connection(mongo_client):
         print(e)
 
 
-def store_news_data(mongo_client, news_data):
-    mongo_client.eodhd.news.insert_many(news_data)
+def store_historical_data(mongo_client, symbol, data):
+    if data:
+        mongo_client.historical_data[symbol].create_index([("date", pymongo.ASCENDING)], unique=True)
+        operations = [
+            UpdateOne({"date": item["date"]}, {"$set": item}, upsert=True)
+            for item in data
+        ]
+        mongo_client.historical_data[symbol].bulk_write(operations)
+
+
+def store_news_data(mongo_client, symbol, data):
+    if data:
+        mongo_client.news_data[symbol].create_index([("date", pymongo.ASCENDING)], unique=True)
+        operations = [
+            UpdateOne({"date": item["date"]}, {"$set": item}, upsert=True)
+            for item in data
+        ]
+        mongo_client.news_data[symbol].bulk_write(operations)
+
+
+def store_fundamental_data(mongo_client, symbol, data):
+    if data:
+        mongo_client.fundamental_data[symbol].replace_one({}, data, upsert=True)

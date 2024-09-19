@@ -2,7 +2,7 @@ from async_eodhd_api import EodhdAPISession
 import db_operations as db
 import env_var
 import asyncio
-from pymongo import MongoClient, UpdateOne
+from pymongo import MongoClient
 
 def connect_to_database() -> MongoClient:
     mongo_client = db.get_mongo_client()
@@ -24,26 +24,13 @@ async def collecting_data(eodhd_api_token: str, mongo_client: MongoClient):
         )
         
         for symbol, data in historical_data:
-            if data:
-                mongo_client.historical_data[symbol].create_index([("date", db.pymongo.ASCENDING)], unique=True)
-                operations = [
-                    UpdateOne({"date": item["date"]}, {"$set": item}, upsert=True)
-                    for item in data
-                ]
-                mongo_client.historical_data[symbol].bulk_write(operations)
+            db.store_historical_data(mongo_client, symbol, data)
         
         for symbol, data in news_data:
-            if data:
-                mongo_client.news_data[symbol].create_index([("date", db.pymongo.ASCENDING)], unique=True)
-                operations = [
-                    UpdateOne({"date": item["date"]}, {"$set": item}, upsert=True)
-                    for item in data
-                ]
-                mongo_client.news_data[symbol].bulk_write(operations)
+            db.store_news_data(mongo_client, symbol, data)
         
         for symbol, data in fundamental_data:
-            if data:
-                mongo_client.fundamental_data[symbol].replace_one({}, data, upsert=True)
+            db.store_fundamental_data(mongo_client, symbol, data)
 
 async def main():
     # Подключение к базе

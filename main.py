@@ -38,9 +38,7 @@ async def collecting_data(eodhd_api_token: str, mongo_client: EodhdMongoClient):
             ])
         
         await asyncio.gather(*tasks)
-        
-        for symbol in symbols:
-            print(f"All data for symbol {symbol} successfully collected and saved.")
+
 
 async def main():
     # Подключение к базе

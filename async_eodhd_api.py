@@ -1,24 +1,32 @@
 import asyncio
-from aiohttp import ClientSession
+from aiohttp import ClientSession, ClientError, ClientResponseError, ClientConnectorError
 import time
 import functools
+import json
+import logging
+from typing import Dict, Any
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def async_timer_decorator(func):
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
-        print(f"Starting function: {func.__name__}")
+        logger.info(f"Starting function: {func.__name__}")
         start_time = time.time()
         result = await func(*args, **kwargs)
         end_time = time.time()
-        print(f"Finished function: {func.__name__}")
-        print(f"Execution time: {end_time - start_time:.4f} seconds")
+        logger.info(f"Finished function: {func.__name__}")
+        logger.info(f"Execution time: {end_time - start_time:.4f} seconds")
         return result
     return wrapper
 
 class EodhdAPISession:
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, max_retries: int = 3, retry_delay: float = 1.0):
         self.api_key = api_key
         self.session = ClientSession(base_url='https://eodhd.com')
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
 
     async def __aenter__(self):
         return self
@@ -29,66 +37,86 @@ class EodhdAPISession:
     async def close(self):
         await self.session.close()
 
+    async def _make_request(self, endpoint: str, params: Dict[str, Any]):
+        params['api_token'] = self.api_key
+        params['fmt'] = 'json'
+        url = f"{self.session._base_url}{endpoint}"
+
+        for attempt in range(self.max_retries):
+            try:
+                async with self.session.get(endpoint, params=params) as resp:
+                    resp.raise_for_status()
+                    try:
+                        return await resp.json()
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Failed to decode JSON response: {str(e)}")
+                        raise
+            except ClientResponseError as e:
+                logger.error(f"HTTP error occurred: {str(e)}")
+                if e.status >= 500:
+                    await asyncio.sleep(self.retry_delay * (2 ** attempt))
+                    continue
+                raise
+            except ClientConnectorError as e:
+                logger.error(f"Connection error occurred: {str(e)}")
+                await asyncio.sleep(self.retry_delay * (2 ** attempt))
+                continue
+            except ClientError as e:
+                logger.error(f"Client error occurred: {str(e)}")
+                raise
+            except Exception as e:
+                logger.error(f"Unexpected error occurred: {str(e)}")
+                raise
+
+        raise RuntimeError(f"Failed after {self.max_retries} attempts. URL: {url}, Params: {params}")
+
+    @async_timer_decorator
     async def get_exchange_symbols(self, exchange: str):
-        async with self.session.get(f'/api/exchange-symbol-list/{exchange}?api_token={self.api_key}&fmt=json') as resp:
-            response_json = await resp.json()
-            codes = [item['Code'] for item in response_json]
-            return codes
+        data = await self._make_request(f'/api/exchange-symbol-list/{exchange}', {})
+        return [item['Code'] for item in data]
 
     @async_timer_decorator
     async def get_historical_data(self, symbol: str):
-        async with self.session.get(f'/api/eod/{symbol}?period=d&api_token={self.api_key}&fmt=json') as resp:
-            if resp.status == 200:
-                historical_data = await resp.json()
-                print(f"Received historical data for symbol {symbol}")
-                return (symbol, historical_data)
-            else:
-                print(f"Error getting historical data for symbol {symbol}: {resp.status}")
-                return (symbol, None)
+        data = await self._make_request(f'/api/eod/{symbol}', {'period': 'd'})
+        logger.info(f"Received historical data for symbol {symbol}")
+        return (symbol, data)
 
     @async_timer_decorator
     async def get_fundamental_data(self, symbol: str):
-        async with self.session.get(f'/api/fundamentals/{symbol}?api_token={self.api_key}&fmt=json') as resp:
-            if resp.status == 200:
-                fundamental_data = await resp.json()
-                print(f"Received fundamental data for symbol {symbol}")
-                return (symbol, fundamental_data)
-            else:
-                print(f"Error getting fundamental data for symbol {symbol}: {resp.status}")
-                return (symbol, None)
+        data = await self._make_request(f'/api/fundamentals/{symbol}', {})
+        logger.info(f"Received fundamental data for symbol {symbol}")
+        return (symbol, data)
 
     @async_timer_decorator
     async def get_news_data(self, symbol: str):
-        async with self.session.get(f'/api/news?s={symbol}&api_token={self.api_key}&fmt=json') as resp:
-            if resp.status == 200:
-                news_data = await resp.json()
-                print(f"Received {len(news_data)} news articles for symbol {symbol}")
-                return (symbol, news_data)
-            else:
-                print(f"Error getting news data for symbol {symbol}: {resp.status}")
-                return (symbol, None)
+        data = await self._make_request('/api/news', {'s': symbol})
+        logger.info(f"Received {len(data)} news articles for symbol {symbol}")
+        return (symbol, data)
 
 if __name__ == '__main__':
     async def main():
         start_time = time.time()
         api_key = "demo"
         async with EodhdAPISession(api_key) as api:
-            results = await asyncio.gather(
-                api.get_historical_data('TSLA'),
-                api.get_fundamental_data('TSLA'),
-                api.get_news_data('TSLA'),
-                # api.get_exchange_symbols('NYSE'),
-            )
-            
-            # Output results
-            print(f"TSLA historical data: {len(results[0][1]) if results[0][1] else 'No data'} records")
-            print(f"TSLA fundamental data: {'Received' if results[1][1] else 'No data'}")
-            print(f"TSLA news data: {len(results[2][1]) if results[2][1] else 'No data'} articles")
-            if results[2][1]:
-                print(results[2][1][0].keys())
-            # print(f"NYSE symbols: {len(results[3])} received")
+            try:
+                results = await asyncio.gather(
+                    api.get_historical_data('TSLA'),
+                    api.get_fundamental_data('TSLA'),
+                    api.get_news_data('TSLA'),
+                    api.get_exchange_symbols('NYSE'),
+                )
+                
+                # Output results
+                logger.info(f"TSLA historical data: {len(results[0][1])} records")
+                logger.info(f"TSLA fundamental data: Received")
+                logger.info(f"TSLA news data: {len(results[2][1])} articles")
+                if results[2][1]:
+                    logger.info(results[2][1][0].keys())
+                logger.info(f"NYSE symbols: {len(results[3])} received")
+            except (ClientResponseError, ClientConnectorError, ClientError, json.JSONDecodeError, RuntimeError) as e:
+                logger.error(f"Error occurred: {str(e)}")
 
         end_time = time.time()
-        print(f'Total execution time: {end_time - start_time} seconds')
+        logger.info(f'Total execution time: {end_time - start_time} seconds')
 
     asyncio.run(main())

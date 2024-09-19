@@ -1,5 +1,10 @@
+import logging
 from pymongo import MongoClient, UpdateOne
 import pymongo
+
+# Настройка базовой конфигурации логгера
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class EodhdMongoClient(MongoClient):
     """
@@ -22,9 +27,9 @@ class EodhdMongoClient(MongoClient):
         """
         try:
             self.admin.command('ping')
-            print("Successfully connected to MongoDB!")
+            logger.info("Successfully connected to MongoDB!")
         except Exception as e:
-            print(f"Error connecting to MongoDB: {e}")
+            logger.error(f"Error connecting to MongoDB: {e}")
 
     def store_historical_data(self, symbol, data):
         """

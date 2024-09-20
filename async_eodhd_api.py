@@ -4,7 +4,7 @@ import time
 import functools
 import json
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -100,9 +100,48 @@ class EodhdAPISession:
         return (symbol, data)
 
     @async_timer_decorator
-    async def get_earnings_data(self):
-        data = await self._make_request('/api/calendar/earnings', {})
-        logger.info(f"Received event calendar data")
+    async def get_earnings_data(self, symbols: List[str] = None, from_date: str = None, to_date: str = None, fmt: str = 'json'):
+        params = {}
+        if from_date:
+            params['from'] = from_date
+        if to_date:
+            params['to'] = to_date
+        if symbols:
+            params['symbols'] = ','.join(symbols)
+        params['fmt'] = fmt
+        data = await self._make_request('/api/calendar/earnings', params)
+        logger.info(f"Received earnings data")
+        return data
+
+    @async_timer_decorator
+    async def get_trends_data(self, symbols: List[str], fmt: str = 'json'):
+        params = {'symbols': ','.join(symbols), 'fmt': fmt}
+        data = await self._make_request('/api/calendar/trends', params)
+        logger.info(f"Received trends data")
+        return data
+
+    @async_timer_decorator
+    async def get_ipos_data(self, from_date: str = None, to_date: str = None, fmt: str = 'json'):
+        params = {}
+        if from_date:
+            params['from'] = from_date
+        if to_date:
+            params['to'] = to_date
+        params['fmt'] = fmt
+        data = await self._make_request('/api/calendar/ipos', params)
+        logger.info(f"Received IPOs data")
+        return data
+
+    @async_timer_decorator
+    async def get_splits_data(self, from_date: str = None, to_date: str = None, fmt: str = 'json'):
+        params = {}
+        if from_date:
+            params['from'] = from_date
+        if to_date:
+            params['to'] = to_date
+        params['fmt'] = fmt
+        data = await self._make_request('/api/calendar/splits', params)
+        logger.info(f"Received splits data")
         return data
 
 if __name__ == '__main__':
@@ -111,18 +150,30 @@ if __name__ == '__main__':
         api_key = "demo"
         async with EodhdAPISession(api_key) as api:
             try:
-                results = await asyncio.gather(
-                    # api.get_historical_data('TSLA'),
-                    # api.get_fundamental_data('TSLA'),
-                    # api.get_news_data('TSLA'),
-                    # api.get_exchange_symbols('NYSE'),
-                    api.get_index_data('GSPC.INDX'),  # S&P 500 index
-                    api.get_earnings_data(),  # Get event calendar data
+                symbols = ['AAPL', 'TSLA', 'MSFT']  # List of symbols
+                indices = ['GSPC.INDX']
+                tasks = {
+                    'historical_data': [api.get_historical_data(symbol) for symbol in symbols],
+                    'fundamental_data': [api.get_fundamental_data(symbol) for symbol in symbols],
+                    'news_data': [api.get_news_data(symbol) for symbol in symbols],
+                    # 'exchange_symbols': api.get_exchange_symbols('NYSE'),
+                    # 'index_data': api.get_index_data(indices),  # S&P 500 index
+                    'earnings_data': [api.get_earnings_data(symbols=symbols)],  # Get event calendar data
+                    'trends_data': [api.get_trends_data(symbols)],
+                    # 'ipos_data': [api.get_ipos_data()],  # Get IPOs data
+                    # 'splits_data': [api.get_splits_data()],  # Get splits data
+                }
+
+                result = dict(zip(
+                    tasks.keys(),
+                    await asyncio.gather(
+                        *(asyncio.gather(*task_list, return_exceptions=True) for task_list in tasks.values())
+                        )
+                    )
                 )
-                
-                # Output results
-                logger.info(f"S&P 500 index data: {len(results[0][1])} records")
-                logger.info(f"Event calendar data: {results[1]}")
+
+                # logger.info(f"Combined results: {result.keys()}")
+
             except (ClientResponseError, ClientConnectorError, ClientError, json.JSONDecodeError, RuntimeError) as e:
                 logger.error(f"Error occurred: {str(e)}")
 

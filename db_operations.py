@@ -1,6 +1,5 @@
 import logging
-from pymongo import MongoClient, UpdateOne
-import pymongo
+from pymongo import MongoClient, UpdateOne, ASCENDING
 
 # Настройка базовой конфигурации логгера
 logging.basicConfig(level=logging.INFO)
@@ -39,7 +38,7 @@ class EodhdMongoClient(MongoClient):
         :param data: List of dictionaries with historical data
         """
         if data:
-            self.historical_data[symbol].create_index([("date", pymongo.ASCENDING)], unique=True)
+            self.historical_data[symbol].create_index([("date", ASCENDING)], unique=True)
             operations = [
                 UpdateOne({"date": item["date"]}, {"$set": item}, upsert=True)
                 for item in data
@@ -54,9 +53,14 @@ class EodhdMongoClient(MongoClient):
         :param data: List of dictionaries with news data
         """
         if data:
-            self.news_data[symbol].create_index([("date", pymongo.ASCENDING)], unique=True)
+            # Create a compound index on date and title (assuming title is unique for a given date)
+            self.news_data[symbol].create_index([("date", ASCENDING), ("title", ASCENDING)], unique=True)
             operations = [
-                UpdateOne({"date": item["date"]}, {"$set": item}, upsert=True)
+                UpdateOne(
+                    {"date": item["date"], "title": item["title"]},
+                    {"$set": item},
+                    upsert=True
+                )
                 for item in data
             ]
             self.news_data[symbol].bulk_write(operations)
@@ -70,3 +74,91 @@ class EodhdMongoClient(MongoClient):
         """
         if data:
             self.fundamental_data[symbol].replace_one({}, data, upsert=True)
+
+    def store_earnings_data(self, data: dict):
+        """
+        Stores earnings data in the database.
+        
+        :param data: Dictionary with earnings data
+        """
+        if 'earnings' not in data:
+            logger.error("Invalid data format for earnings: 'earnings' key is missing")
+            return
+
+        earnings = data['earnings']
+
+        try:
+            for symbol_data in earnings:
+                if not symbol_data:
+                    continue
+                symbol = symbol_data[0].get('code')
+                if not symbol:
+                    logger.warning(f"Symbol code is missing in earnings data: {symbol_data}")
+                    continue
+
+                collection = self.earnings_data[symbol]
+                
+                # Create a compound index on all fields of the first item
+                if symbol_data:
+                    index_fields = [(field, ASCENDING) for field in symbol_data[0].keys()]
+                    collection.create_index(index_fields, unique=True)
+                
+                    operations = [
+                        UpdateOne(
+                            item,  # Use all fields as the filter
+                            {"$set": item},
+                            upsert=True
+                        ) for item in symbol_data
+                    ]
+                    result = collection.bulk_write(operations)
+                    logger.info(f"Upserted {result.upserted_count} and modified {result.modified_count} earnings records for symbol: {symbol}")
+                else:
+                    logger.info(f"No earnings data found for symbol: {symbol}")
+
+            logger.info(f"Earnings data processing completed for {len(earnings)} symbols")
+        except Exception as e:
+            logger.error(f"Error occurred while storing earnings data: {e}")
+
+    def store_trends_data(self, data: dict):
+        """
+        Stores trends data in the database.
+        
+        :param data: Dictionary with trends data
+        """
+        if 'trends' not in data:
+            logger.error("Invalid data format for trends: 'trends' key is missing")
+            return
+
+        trends = data['trends']
+
+        try:
+            for symbol_data in trends:
+                if not symbol_data:
+                    continue
+                symbol = symbol_data[0].get('code')
+                if not symbol:
+                    logger.warning(f"Symbol code is missing in trends data: {symbol_data}")
+                    continue
+
+                collection = self.trends_data[symbol]
+                
+                # Create a compound index on all fields of the first item
+                if symbol_data:
+                    index_fields = [(field, ASCENDING) for field in symbol_data[0].keys()]
+                    collection.create_index(index_fields, unique=True)
+                
+                    operations = [
+                        UpdateOne(
+                            item,  # Use all fields as the filter
+                            {"$set": item},
+                            upsert=True
+                        ) for item in symbol_data
+                    ]
+                    result = collection.bulk_write(operations)
+                    logger.info(f"Upserted {result.upserted_count} and modified {result.modified_count} trends records for symbol: {symbol}")
+                else:
+                    logger.info(f"No trends data found for symbol: {symbol}")
+
+            logger.info(f"Trends data processing completed for {len(trends)} symbols")
+        except Exception as e:
+            logger.error(f"Error occurred while storing trends data: {e}")

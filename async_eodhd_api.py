@@ -153,13 +153,13 @@ if __name__ == '__main__':
                 symbols = ['AAPL', 'TSLA', 'MSFT']  # List of symbols
                 indices = ['GSPC.INDX']
                 tasks = {
-                    'historical_data': [api.get_historical_data(symbol) for symbol in symbols],
-                    'fundamental_data': [api.get_fundamental_data(symbol) for symbol in symbols],
-                    'news_data': [api.get_news_data(symbol) for symbol in symbols],
+                    # 'historical_data': [api.get_historical_data(symbol) for symbol in symbols],
+                    # 'fundamental_data': [api.get_fundamental_data(symbol) for symbol in symbols],
+                    # 'news_data': [api.get_news_data(symbol) for symbol in symbols],
                     # 'exchange_symbols': api.get_exchange_symbols('NYSE'),
                     # 'index_data': api.get_index_data(indices),  # S&P 500 index
-                    'earnings_data': [api.get_earnings_data(symbols=symbols)],  # Get event calendar data
-                    'trends_data': [api.get_trends_data(symbols)],
+                    # 'earnings_data': [api.get_earnings_data(symbols=symbols)],  # Get event calendar data
+                    # 'trends_data': [api.get_trends_data(['AAPL'])],
                     # 'ipos_data': [api.get_ipos_data()],  # Get IPOs data
                     # 'splits_data': [api.get_splits_data()],  # Get splits data
                 }
@@ -172,7 +172,7 @@ if __name__ == '__main__':
                     )
                 )
 
-                # logger.info(f"Combined results: {result.keys()}")
+                logger.info(f"Combined results: {result}")
 
             except (ClientResponseError, ClientConnectorError, ClientError, json.JSONDecodeError, RuntimeError) as e:
                 logger.error(f"Error occurred: {str(e)}")

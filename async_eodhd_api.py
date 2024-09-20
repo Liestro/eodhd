@@ -144,6 +144,15 @@ class EodhdAPISession:
         logger.info(f"Received splits data")
         return data
 
+    @async_timer_decorator
+    async def get_macro_indicators_data(self, country: str, indicator: str = None, fmt: str = 'json'):
+        params = {'fmt': fmt}
+        if indicator:
+            params['indicator'] = indicator
+        data = await self._make_request(f'/api/macro-indicator/{country}', params)
+        logger.info(f"Received macro indicators data for country: {country}")
+        return data
+
 if __name__ == '__main__':
     async def main():
         start_time = time.time()

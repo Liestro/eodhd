@@ -235,3 +235,38 @@ class EodhdMongoClient(MongoClient):
 
         except Exception as e:
             logger.error(f"Error occurred while storing splits data: {e}")
+
+    def store_macro_indicators_data(self, data: dict):
+        """
+        Stores macro indicators data in the database.
+        
+        :param data: Dictionary with macro indicators data
+        """
+        if not data:
+            logger.error("No macro indicators data to store")
+            return
+
+        try:
+            collection = self['macro_indicators']['data']
+            
+            # Create a compound index on 'country_code' and 'indicator' fields
+            collection.create_index([("country_code", ASCENDING), ("indicator", ASCENDING)], unique=True)
+            
+            operations = []
+            for indicator in data:
+                operations.append(
+                    UpdateOne(
+                        {"country_code": indicator['country_code'], "indicator": indicator['indicator']},
+                        {"$set": indicator},
+                        upsert=True
+                    )
+                )
+            
+            if operations:
+                result = collection.bulk_write(operations)
+                logger.info(f"Upserted {result.upserted_count} and modified {result.modified_count} macro indicator records")
+            else:
+                logger.info("No macro indicators data to insert")
+
+        except Exception as e:
+            logger.error(f"Error occurred while storing macro indicators data: {e}")

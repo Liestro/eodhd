@@ -46,6 +46,10 @@ async def collect_and_store_splits_data(session: EodhdAPISession, mongo_client: 
     splits_data = await session.get_splits_data()
     mongo_client.store_splits_data(splits_data)
 
+async def collect_and_store_macro_indicators_data(session: EodhdAPISession, mongo_client: EodhdMongoClient, country: str):
+    macro_indicators_data = await session.get_macro_indicators_data(country)
+    mongo_client.store_macro_indicators_data(macro_indicators_data)
+
 async def collecting_data(eodhd_api_token: str, mongo_client: EodhdMongoClient):
     failed_operations: Dict[str, Dict[str, Exception]] = {}
     
@@ -54,6 +58,7 @@ async def collecting_data(eodhd_api_token: str, mongo_client: EodhdMongoClient):
         # symbols = ['TSLA', 'AAPL', 'MSFT', 'T', 'hvjhygtvjhgghjv'] # symbols accessible with demo api key / for testing
         symbols = ['AAPL', 'TSLA', 'MSFT']
         indices = ['GSPC.INDX']
+        country = 'USA'
 
         tasks = {
             'historical': [collect_and_store_historical_data(session, mongo_client, symbol) for symbol in symbols],
@@ -63,7 +68,8 @@ async def collecting_data(eodhd_api_token: str, mongo_client: EodhdMongoClient):
             'trends': [collect_and_store_trends_data(session, mongo_client, symbols)],
             'ipos': [collect_and_store_ipos_data(session, mongo_client)],
             'splits': [collect_and_store_splits_data(session, mongo_client)],
-            # 'indices': [collect_and_store_indices_data(session, mongo_client, index) for index in indices]  # Add indices data collection
+            'macro_indicators': [collect_and_store_macro_indicators_data(session, mongo_client, country)],
+            'indices': [collect_and_store_indices_data(session, mongo_client, index) for index in indices]  # Add indices data collection
         }
         
         results = dict(
@@ -84,7 +90,7 @@ async def collecting_data(eodhd_api_token: str, mongo_client: EodhdMongoClient):
             for symbol, result in zip(symbols, task_results):
                 if isinstance(result, Exception):
                     failed_operations.setdefault(task_type, {})[symbol] = result
-        elif task_type in ['earnings', 'trends', 'ipos', 'splits']:
+        elif task_type in ['earnings', 'trends', 'ipos', 'splits', 'macro_indicators']:
             if isinstance(task_results[0], Exception):
                 failed_operations.setdefault(task_type, {})['all_data'] = task_results[0]
 

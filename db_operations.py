@@ -1,7 +1,6 @@
 import logging
 from pymongo import MongoClient, UpdateOne, ASCENDING
 
-# Настройка базовой конфигурации логгера
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -162,3 +161,77 @@ class EodhdMongoClient(MongoClient):
             logger.info(f"Trends data processing completed for {len(trends)} symbols")
         except Exception as e:
             logger.error(f"Error occurred while storing trends data: {e}")
+
+    def store_ipos_data(self, data: dict):
+        """
+        Stores IPOs data in the database.
+        
+        :param data: Dictionary with IPOs data
+        """
+        if 'ipos' not in data:
+            logger.error("Invalid data format for IPOs: 'ipos' key is missing")
+            return
+
+        ipos = data['ipos']
+
+        try:
+            collection = self['ipos_splits']['ipos']
+            
+            # Create a compound index on 'code' and 'start_date' fields
+            collection.create_index([("code", ASCENDING), ("start_date", ASCENDING)], unique=True)
+            
+            operations = []
+            for ipo in ipos:
+                operations.append(
+                    UpdateOne(
+                        {"code": ipo['code'], "start_date": ipo['start_date']},
+                        {"$set": ipo},
+                        upsert=True
+                    )
+                )
+            
+            if operations:
+                result = collection.bulk_write(operations)
+                logger.info(f"Upserted {result.upserted_count} and modified {result.modified_count} IPO records")
+            else:
+                logger.info("No IPO data to insert")
+
+        except Exception as e:
+            logger.error(f"Error occurred while storing IPOs data: {e}")
+
+    def store_splits_data(self, data: dict):
+        """
+        Stores splits data in the database.
+        
+        :param data: Dictionary with splits data
+        """
+        if 'splits' not in data:
+            logger.error("Invalid data format for splits: 'splits' key is missing")
+            return
+
+        splits = data['splits']
+
+        try:
+            collection = self['ipos_splits']['splits']
+            
+            # Create a compound index on 'code' and 'split_date' fields
+            collection.create_index([("code", ASCENDING), ("split_date", ASCENDING)], unique=True)
+            
+            operations = []
+            for split in splits:
+                operations.append(
+                    UpdateOne(
+                        {"code": split['code'], "split_date": split['split_date']},
+                        {"$set": split},
+                        upsert=True
+                    )
+                )
+            
+            if operations:
+                result = collection.bulk_write(operations)
+                logger.info(f"Upserted {result.upserted_count} and modified {result.modified_count} split records")
+            else:
+                logger.info("No split data to insert")
+
+        except Exception as e:
+            logger.error(f"Error occurred while storing splits data: {e}")

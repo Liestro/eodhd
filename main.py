@@ -38,6 +38,14 @@ async def collect_and_store_trends_data(session: EodhdAPISession, mongo_client: 
     trends_data = await session.get_trends_data(symbols)
     mongo_client.store_trends_data(trends_data)
 
+async def collect_and_store_ipos_data(session: EodhdAPISession, mongo_client: EodhdMongoClient):
+    ipos_data = await session.get_ipos_data()
+    mongo_client.store_ipos_data(ipos_data)
+
+async def collect_and_store_splits_data(session: EodhdAPISession, mongo_client: EodhdMongoClient):
+    splits_data = await session.get_splits_data()
+    mongo_client.store_splits_data(splits_data)
+
 async def collecting_data(eodhd_api_token: str, mongo_client: EodhdMongoClient):
     failed_operations: Dict[str, Dict[str, Exception]] = {}
     
@@ -53,6 +61,8 @@ async def collecting_data(eodhd_api_token: str, mongo_client: EodhdMongoClient):
             'news': [collect_and_store_news_data(session, mongo_client, symbol) for symbol in symbols],
             'earnings': [collect_and_store_earnings_data(session, mongo_client, symbols)],
             'trends': [collect_and_store_trends_data(session, mongo_client, symbols)],
+            'ipos': [collect_and_store_ipos_data(session, mongo_client)],
+            'splits': [collect_and_store_splits_data(session, mongo_client)],
             # 'indices': [collect_and_store_indices_data(session, mongo_client, index) for index in indices]  # Add indices data collection
         }
         
@@ -74,9 +84,9 @@ async def collecting_data(eodhd_api_token: str, mongo_client: EodhdMongoClient):
             for symbol, result in zip(symbols, task_results):
                 if isinstance(result, Exception):
                     failed_operations.setdefault(task_type, {})[symbol] = result
-        elif task_type in ['earnings', 'trends']:
+        elif task_type in ['earnings', 'trends', 'ipos', 'splits']:
             if isinstance(task_results[0], Exception):
-                failed_operations.setdefault(task_type, {})['all_symbols'] = task_results[0]
+                failed_operations.setdefault(task_type, {})['all_data'] = task_results[0]
 
     # Log the results of the operation
     if failed_operations:

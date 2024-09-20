@@ -82,6 +82,12 @@ class EodhdAPISession:
         return (symbol, data)
 
     @async_timer_decorator
+    async def get_index_data(self, index: str):
+        data = await self._make_request(f'/api/eod/{index}', {'period': 'd'})
+        logger.info(f"Received historical data for index {index}")
+        return (index, data)
+
+    @async_timer_decorator
     async def get_fundamental_data(self, symbol: str):
         data = await self._make_request(f'/api/fundamentals/{symbol}', {})
         logger.info(f"Received fundamental data for symbol {symbol}")
@@ -100,19 +106,15 @@ if __name__ == '__main__':
         async with EodhdAPISession(api_key) as api:
             try:
                 results = await asyncio.gather(
-                    api.get_historical_data('TSLA'),
-                    api.get_fundamental_data('TSLA'),
-                    api.get_news_data('TSLA'),
-                    api.get_exchange_symbols('NYSE'),
+                    # api.get_historical_data('TSLA'),
+                    # api.get_fundamental_data('TSLA'),
+                    # api.get_news_data('TSLA'),
+                    # api.get_exchange_symbols('NYSE'),
+                    api.get_index_data('GSPC.INDX'),  # S&P 500 index
                 )
                 
                 # Output results
-                logger.info(f"TSLA historical data: {len(results[0][1])} records")
-                logger.info(f"TSLA fundamental data: Received")
-                logger.info(f"TSLA news data: {len(results[2][1])} articles")
-                if results[2][1]:
-                    logger.info(results[2][1][0].keys())
-                logger.info(f"NYSE symbols: {len(results[3])} received")
+                logger.info(f"S&P 500 index data: {len(results[0][1])} records")
             except (ClientResponseError, ClientConnectorError, ClientError, json.JSONDecodeError, RuntimeError) as e:
                 logger.error(f"Error occurred: {str(e)}")
 

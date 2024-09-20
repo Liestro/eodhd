@@ -25,17 +25,25 @@ async def collect_and_store_news_data(session: EodhdAPISession, mongo_client: Eo
     news_data = await session.get_news_data(symbol)
     mongo_client.store_news_data(symbol, news_data[1])
 
+# New function to collect and store index data
+async def collect_and_store_indices_data(session: EodhdAPISession, mongo_client: EodhdMongoClient, index: str):
+    index_data = await session.get_index_data(index)
+    mongo_client.store_historical_data(index, index_data[1])
+
 async def collecting_data(eodhd_api_token: str, mongo_client: EodhdMongoClient):
     failed_operations: Dict[str, Dict[str, Exception]] = {}
     
     async with EodhdAPISession(eodhd_api_token) as session:
-        # symbols = await session.get_exchange_symbols("NYSE")
-        symbols = ['TSLA', 'AAPL', 'MSFT', 'T', 'hvjhygtvjhgghjv'] # symbols accessible with demo api key / for testing
-        
+        # symbols = session.get_exchange_symbols("NYSE")
+        # symbols = ['TSLA', 'AAPL', 'MSFT', 'T', 'hvjhygtvjhgghjv'] # symbols accessible with demo api key / for testing
+        symbols = ['TSLA']
+        indices = ['GSPC.INDX']
+
         tasks = {
             'historical': [collect_and_store_historical_data(session, mongo_client, symbol) for symbol in symbols],
-            'fundamental': [collect_and_store_fundamental_data(session, mongo_client, symbol) for symbol in symbols],
-            'news': [collect_and_store_news_data(session, mongo_client, symbol) for symbol in symbols]
+            # 'fundamental': [collect_and_store_fundamental_data(session, mongo_client, symbol) for symbol in symbols],
+            'news': [collect_and_store_news_data(session, mongo_client, symbol) for symbol in symbols],
+            'indices': [collect_and_store_indices_data(session, mongo_client, index) for index in indices]  # Add indices data collection
         }
         
         results = await asyncio.gather(
@@ -43,17 +51,23 @@ async def collecting_data(eodhd_api_token: str, mongo_client: EodhdMongoClient):
         )
     
     for data_type, task_results in zip(tasks.keys(), results):
-        for symbol, result in zip(symbols, task_results):
-            if isinstance(result, Exception):
-                failed_operations.setdefault(data_type, {})[symbol] = result
-    
+        if data_type == "indices":
+            for index, result in zip(indices, task_results):
+                if isinstance(result, Exception):
+                    failed_operations.setdefault(data_type, {})[index] = result
+        else:
+            for symbol, result in zip(symbols, task_results):
+                if isinstance(result, Exception):
+                    failed_operations.setdefault(data_type, {})[symbol] = result
+        
+
     # Log the results of the operation
     if failed_operations:
         logging.error("The following operations failed:")
         for data_type, failures in failed_operations.items():
             logging.error(f"Failed {data_type} operations:")
-            for symbol, error in failures.items():
-                logging.error(f"  - {symbol}: {str(error)}")
+            for symbol_or_index, error in failures.items():
+                logging.error(f"  - {symbol_or_index}: {str(error)}")
     else:
         logging.info("All operations completed successfully.")
     

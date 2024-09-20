@@ -9,6 +9,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 def connect_to_database() -> EodhdMongoClient:
     mongo_uri = f"mongodb://{env_var.MONGO_HOST}:27017/"
+    # mongo_uri = f"mongodb://localhost:27017/"
     mongo_client = EodhdMongoClient(mongo_uri)
     mongo_client.test_connection()
     return mongo_client

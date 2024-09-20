@@ -99,6 +99,12 @@ class EodhdAPISession:
         logger.info(f"Received {len(data)} news articles for symbol {symbol}")
         return (symbol, data)
 
+    @async_timer_decorator
+    async def get_earnings_data(self):
+        data = await self._make_request('/api/calendar/earnings', {})
+        logger.info(f"Received event calendar data")
+        return data
+
 if __name__ == '__main__':
     async def main():
         start_time = time.time()
@@ -111,10 +117,12 @@ if __name__ == '__main__':
                     # api.get_news_data('TSLA'),
                     # api.get_exchange_symbols('NYSE'),
                     api.get_index_data('GSPC.INDX'),  # S&P 500 index
+                    api.get_earnings_data(),  # Get event calendar data
                 )
                 
                 # Output results
                 logger.info(f"S&P 500 index data: {len(results[0][1])} records")
+                logger.info(f"Event calendar data: {results[1]}")
             except (ClientResponseError, ClientConnectorError, ClientError, json.JSONDecodeError, RuntimeError) as e:
                 logger.error(f"Error occurred: {str(e)}")
 

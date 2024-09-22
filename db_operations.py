@@ -19,6 +19,19 @@ class EodhdMongoClient(MongoClient):
         """
         super().__init__(mongo_uri)
 
+    def __enter__(self):
+        """
+        Enter the runtime context related to this object.
+        """
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """
+        Exit the runtime context related to this object.
+        """
+        self.close()
+        logger.info("MongoDB connection closed.")
+
     def test_connection(self):
         """
         Tests the connection to MongoDB.

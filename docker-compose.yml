@@ -1,0 +1,20 @@
+services:
+  eodhd:
+    build: .
+    container_name: eodhd
+    command: python main.py
+    environment:
+      - MONGO_HOST=eodhd-mongodb
+    depends_on:
+      - mongodb
+
+  mongodb:
+    image: mongo
+    container_name: eodhd-mongodb
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodbvol:/data/db
+
+volumes:
+  mongodbvol:

@@ -268,14 +268,22 @@ class EodhdMongoClient(MongoClient):
         try:
             collection = self['macro_indicators']['data']
             
-            # Create a compound index on 'country_code' and 'indicator' fields
-            collection.create_index([("country_code", ASCENDING), ("indicator", ASCENDING)], unique=True)
+            # Create a compound index on 'CountryCode', 'Indicator', and 'Date' fields
+            collection.create_index([
+                ("CountryCode", ASCENDING),
+                ("Indicator", ASCENDING),
+                ("Date", ASCENDING)
+            ], unique=True)
             
             operations = []
             for indicator in data:
                 operations.append(
                     UpdateOne(
-                        {"country_code": indicator['country_code'], "indicator": indicator['indicator']},
+                        {
+                            "CountryCode": indicator['CountryCode'],
+                            "Indicator": indicator['Indicator'],
+                            "Date": indicator['Date']
+                        },
                         {"$set": indicator},
                         upsert=True
                     )

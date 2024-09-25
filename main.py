@@ -1,85 +1,39 @@
-from async_eodhd_api import EodhdAPISession
-from db_operations import EodhdMongoClient
 import env_var
 import asyncio
 import logging
-from typing import Dict, List
+from typing import Dict
+from data_collection import DataCollector
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def connect_to_database() -> EodhdMongoClient:
-    mongo_uri = f"mongodb://{env_var.MONGO_HOST}:27017/"
-    # mongo_uri = f"mongodb://localhost:27017/"
-    mongo_client = EodhdMongoClient(mongo_uri)
-    mongo_client.test_connection()
-    return mongo_client
-
-async def collect_and_store_historical_data(session: EodhdAPISession, mongo_client: EodhdMongoClient, symbol: str):
-    historical_data = await session.get_historical_data(symbol)
-    mongo_client.store_historical_data(symbol, historical_data[1])
-
-async def collect_and_store_fundamental_data(session: EodhdAPISession, mongo_client: EodhdMongoClient, symbol: str):
-    fundamental_data = await session.get_fundamental_data(symbol)
-    mongo_client.store_fundamental_data(symbol, fundamental_data[1])
-
-async def collect_and_store_news_data(session: EodhdAPISession, mongo_client: EodhdMongoClient, symbol: str):
-    news_data = await session.get_news_data(symbol)
-    mongo_client.store_news_data(symbol, news_data[1])
-
-async def collect_and_store_indices_data(session: EodhdAPISession, mongo_client: EodhdMongoClient, index: str):
-    index_data = await session.get_index_data(index)
-    mongo_client.store_historical_data(index, index_data[1])
-
-async def collect_and_store_earnings_data(session: EodhdAPISession, mongo_client: EodhdMongoClient, symbols: List[str] = []):
-    earnings_data = await session.get_earnings_data(symbols=symbols)
-    mongo_client.store_earnings_data(earnings_data)
-
-async def collect_and_store_trends_data(session: EodhdAPISession, mongo_client: EodhdMongoClient, symbols: List[str]):
-    trends_data = await session.get_trends_data(symbols)
-    mongo_client.store_trends_data(trends_data)
-
-async def collect_and_store_ipos_data(session: EodhdAPISession, mongo_client: EodhdMongoClient):
-    ipos_data = await session.get_ipos_data()
-    mongo_client.store_ipos_data(ipos_data)
-
-async def collect_and_store_splits_data(session: EodhdAPISession, mongo_client: EodhdMongoClient):
-    splits_data = await session.get_splits_data()
-    mongo_client.store_splits_data(splits_data)
-
-async def collect_and_store_macro_indicators_data(session: EodhdAPISession, mongo_client: EodhdMongoClient, country: str):
-    macro_indicators_data = await session.get_macro_indicators_data(country)
-    mongo_client.store_macro_indicators_data(macro_indicators_data)
-
-async def collecting_data(eodhd_api_token: str, mongo_client: EodhdMongoClient):
+async def collecting_data(eodhd_api_token: str, mongo_uri: str):
     failed_operations: Dict[str, Dict[str, Exception]] = {}
     
-    async with EodhdAPISession(eodhd_api_token) as session:
-        # symbols = session.get_exchange_symbols("NYSE")
-        # symbols = ['TSLA', 'AAPL', 'MSFT', 'T', 'hvjhygtvjhgghjv'] # symbols accessible with demo api key / for testing
+    async with DataCollector(eodhd_api_token, mongo_uri) as dc:
         symbols = ['AAPL', 'TSLA', 'MSFT']
         indices = ['GSPC.INDX']
-        country = 'USA'
+        country = ['USA']
 
         tasks = {
-            # 'historical': [collect_and_store_historical_data(session, mongo_client, symbol) for symbol in symbols],
-            # 'fundamental': [collect_and_store_fundamental_data(session, mongo_client, symbol) for symbol in symbols],
-            # 'news': [collect_and_store_news_data(session, mongo_client, symbol) for symbol in symbols],
-            'earnings': [collect_and_store_earnings_data(session, mongo_client)],
-            # 'trends': [collect_and_store_trends_data(session, mongo_client, symbols)],
-            # 'ipos': [collect_and_store_ipos_data(session, mongo_client)],
-            # 'splits': [collect_and_store_splits_data(session, mongo_client)],
-            # 'macro_indicators': [collect_and_store_macro_indicators_data(session, mongo_client, country)],
-            # 'indices': [collect_and_store_indices_data(session, mongo_client, index) for index in indices]  # Add indices data collection
+            'historical': [dc.collect_and_store_historical_data(symbol) for symbol in symbols],
+            'fundamental': [dc.collect_and_store_fundamental_data(symbol) for symbol in symbols],
+            'news': [dc.collect_and_store_news_data(symbol) for symbol in symbols],
+            'earnings': [dc.collect_and_store_earnings_data()],
+            'trends': [dc.collect_and_store_trends_data(symbols)],
+            'ipos': [dc.collect_and_store_ipos_data()],
+            'splits': [dc.collect_and_store_splits_data()],
+            'macro_indicators': [dc.collect_and_store_macro_indicators_data(country) for country in country],
+            'indices': [dc.collect_and_store_indices_data(index) for index in indices]
         }
         
         results = dict(
             zip(
-                    tasks.keys(),
-                    await asyncio.gather(
-                        *(asyncio.gather(*task_list, return_exceptions=True) for task_list in tasks.values())
-                        )
-                    )
+                tasks.keys(),
+                await asyncio.gather(
+                    *(asyncio.gather(*task_list, return_exceptions=True) for task_list in tasks.values())
                 )
+            )
+        )
 
     for task_type, task_results in results.items():
         if task_type == "indices":
@@ -107,9 +61,9 @@ async def collecting_data(eodhd_api_token: str, mongo_client: EodhdMongoClient):
     return failed_operations
 
 async def main():
-    mongo_client = connect_to_database()
     eodhd_api_token = env_var.EODHD_REAL_TOKEN
-    failed_operations = await collecting_data(eodhd_api_token, mongo_client)
+    mongo_uri = f"mongodb://{env_var.MONGO_HOST}:27017/"
+    failed_operations = await collecting_data(eodhd_api_token, mongo_uri)
 
 if __name__ == "__main__":
     asyncio.run(main())

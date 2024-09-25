@@ -18,6 +18,7 @@ class EodhdMongoClient(MongoClient):
         :param mongo_uri: MongoDB connection URI
         """
         super().__init__(mongo_uri)
+        self.__logger = logging.getLogger(__name__)
 
     def __enter__(self):
         """

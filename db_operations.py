@@ -100,19 +100,25 @@ class EodhdMongoClient(MongoClient):
         earnings = data['earnings']
 
         try:
-            for symbol_data in earnings:
-                if not symbol_data:
+            # Группируем данные по символам
+            symbol_data = {}
+            for item in earnings:
+                if not item:
                     continue
-                symbol = symbol_data[0].get('code')
+                symbol = item.get('code')
                 if not symbol:
-                    logger.warning(f"Symbol code is missing in earnings data: {symbol_data}")
+                    logger.warning(f"Symbol code is missing in earnings data: {item}")
                     continue
+                if symbol not in symbol_data:
+                    symbol_data[symbol] = []
+                symbol_data[symbol].append(item)
 
+            for symbol, items in symbol_data.items():
                 collection = self.earnings_data[symbol]
                 
                 # Create a compound index on all fields of the first item
-                if symbol_data:
-                    index_fields = [(field, ASCENDING) for field in symbol_data[0].keys()]
+                if items:
+                    index_fields = [(field, ASCENDING) for field in items[0].keys()]
                     collection.create_index(index_fields, unique=True)
                 
                     operations = [
@@ -120,14 +126,14 @@ class EodhdMongoClient(MongoClient):
                             item,  # Use all fields as the filter
                             {"$set": item},
                             upsert=True
-                        ) for item in symbol_data
+                        ) for item in items
                     ]
                     result = collection.bulk_write(operations)
                     logger.info(f"Upserted {result.upserted_count} and modified {result.modified_count} earnings records for symbol: {symbol}")
                 else:
                     logger.info(f"No earnings data found for symbol: {symbol}")
 
-            logger.info(f"Earnings data processing completed for {len(earnings)} symbols")
+            logger.info(f"Earnings data processing completed for {len(symbol_data)} symbols")
         except Exception as e:
             logger.error(f"Error occurred while storing earnings data: {e}")
 

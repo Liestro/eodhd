@@ -6,6 +6,8 @@ import json
 import logging
 from typing import Dict, Any, List
 
+import env_var
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -156,7 +158,7 @@ class EodhdAPISession:
 if __name__ == '__main__':
     async def main():
         start_time = time.time()
-        api_key = "demo"
+        api_key = env_var.EODHD_REAL_TOKEN
         async with EodhdAPISession(api_key) as api:
             try:
                 symbols = ['AAPL', 'TSLA', 'MSFT']  # List of symbols
@@ -167,7 +169,7 @@ if __name__ == '__main__':
                     # 'news_data': [api.get_news_data(symbol) for symbol in symbols],
                     # 'exchange_symbols': api.get_exchange_symbols('NYSE'),
                     # 'index_data': api.get_index_data(indices),  # S&P 500 index
-                    # 'earnings_data': [api.get_earnings_data(symbols=symbols)],  # Get event calendar data
+                    'earnings_data': [api.get_earnings_data(from_date='2024-01-01', to_date='2024-01-02')],  # Get event calendar data
                     # 'trends_data': [api.get_trends_data(['AAPL'])],
                     # 'ipos_data': [api.get_ipos_data()],  # Get IPOs data
                     # 'splits_data': [api.get_splits_data()],  # Get splits data

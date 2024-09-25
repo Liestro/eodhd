@@ -30,7 +30,7 @@ async def collect_and_store_indices_data(session: EodhdAPISession, mongo_client:
     index_data = await session.get_index_data(index)
     mongo_client.store_historical_data(index, index_data[1])
 
-async def collect_and_store_earnings_data(session: EodhdAPISession, mongo_client: EodhdMongoClient, symbols: List[str]):
+async def collect_and_store_earnings_data(session: EodhdAPISession, mongo_client: EodhdMongoClient, symbols: List[str] = []):
     earnings_data = await session.get_earnings_data(symbols=symbols)
     mongo_client.store_earnings_data(earnings_data)
 
@@ -61,15 +61,15 @@ async def collecting_data(eodhd_api_token: str, mongo_client: EodhdMongoClient):
         country = 'USA'
 
         tasks = {
-            'historical': [collect_and_store_historical_data(session, mongo_client, symbol) for symbol in symbols],
-            'fundamental': [collect_and_store_fundamental_data(session, mongo_client, symbol) for symbol in symbols],
-            'news': [collect_and_store_news_data(session, mongo_client, symbol) for symbol in symbols],
-            'earnings': [collect_and_store_earnings_data(session, mongo_client, symbols)],
-            'trends': [collect_and_store_trends_data(session, mongo_client, symbols)],
-            'ipos': [collect_and_store_ipos_data(session, mongo_client)],
-            'splits': [collect_and_store_splits_data(session, mongo_client)],
-            'macro_indicators': [collect_and_store_macro_indicators_data(session, mongo_client, country)],
-            'indices': [collect_and_store_indices_data(session, mongo_client, index) for index in indices]  # Add indices data collection
+            # 'historical': [collect_and_store_historical_data(session, mongo_client, symbol) for symbol in symbols],
+            # 'fundamental': [collect_and_store_fundamental_data(session, mongo_client, symbol) for symbol in symbols],
+            # 'news': [collect_and_store_news_data(session, mongo_client, symbol) for symbol in symbols],
+            'earnings': [collect_and_store_earnings_data(session, mongo_client)],
+            # 'trends': [collect_and_store_trends_data(session, mongo_client, symbols)],
+            # 'ipos': [collect_and_store_ipos_data(session, mongo_client)],
+            # 'splits': [collect_and_store_splits_data(session, mongo_client)],
+            # 'macro_indicators': [collect_and_store_macro_indicators_data(session, mongo_client, country)],
+            # 'indices': [collect_and_store_indices_data(session, mongo_client, index) for index in indices]  # Add indices data collection
         }
         
         results = dict(
@@ -108,7 +108,7 @@ async def collecting_data(eodhd_api_token: str, mongo_client: EodhdMongoClient):
 
 async def main():
     mongo_client = connect_to_database()
-    eodhd_api_token = env_var.EODHD_API_TOKEN
+    eodhd_api_token = env_var.EODHD_REAL_TOKEN
     failed_operations = await collecting_data(eodhd_api_token, mongo_client)
 
 if __name__ == "__main__":
